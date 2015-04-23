@@ -18,7 +18,9 @@
 module Graph (
   Node(..),
   Graph(..),
-  Edge(..)
+  toGraph,
+  Edge(..),
+  transwesd
 )
 where
 
@@ -27,9 +29,9 @@ import qualified Data.Map as Map
 import Debug.Trace
 
 
-data Node = Node { name::[Char]
-                 , posdep::[([Char],Double)]
-                 , negdep::[([Char],Double)]
+data Node = Node { name::String
+                 , posdep::[(String,Double)]
+                 , negdep::[(String,Double)]
 }
 
 instance Show Node where
@@ -39,8 +41,8 @@ instance Eq Node where
 
 
 
-data Edge = Edge { source::[Char]
-                 , target::[Char]
+data Edge = Edge { source::String
+                 , target::String
                  , sign::Bool
                  , weight::Double
 }
@@ -49,7 +51,7 @@ instance Show Edge where
 
 
 
-type Graph =  Map.Map ([Char]) (Node)
+type Graph =  Map.Map (String) (Node)
 
 toGraph:: [Edge] -> Graph
 toGraph x = toGraph2 x Map.empty
@@ -68,23 +70,14 @@ addEdge g (Edge source target sign weight) =
   Nothing -> if sign
              then Map.insert source (Node source [(target,weight)] []) g
              else Map.insert source (Node source [] [(target,weight)]) g
--- 
--- 
--- toGraph2:: [Edge] -> Graph -> Graph
--- toGraph2 [] g = g
--- toGraph2 ((Edge s t sign weight):es) g =
---   let g' =Map.insert s g
---       g'' Map.insert t g
 
 
-
-
-getnodes:: [([Char],Double)] -> [[Char]]
+getnodes:: [(String,Double)] -> [String]
 getnodes [] = []
 getnodes ((n,d):rest) = (n:(getnodes rest))
 
 
-has_pathto:: Graph -> [Char] -> [[Char]] -> [Char] -> Bool
+has_pathto:: Graph -> String -> [String] -> String -> Bool
 has_pathto graph goal visited cur =
   case Map.lookup cur graph of
   Just (Node name posdep negdep) -> let dep = (getnodes posdep) ++ (getnodes negdep) in
@@ -97,7 +90,7 @@ has_pathto graph goal visited cur =
   _ -> False
                                                 
 
-has_pospathto:: Graph -> [Char] -> [[Char]] -> [[Char]] -> [Char] -> Bool
+has_pospathto:: Graph -> String -> [String] -> [String] -> String -> Bool
 has_pospathto graph goal pvisited nvisited cur =
   case Map.lookup cur graph of
   Just (Node name posdep negdep) -> let pdep = getnodes posdep
@@ -112,7 +105,7 @@ has_pospathto graph goal pvisited nvisited cur =
   _ -> False
 
 
-has_negpathto:: Graph -> [Char] -> [[Char]] -> [[Char]] -> [Char] -> Bool
+has_negpathto:: Graph -> String -> [String] -> [String] -> String -> Bool
 has_negpathto graph goal pvisited nvisited cur =
   case Map.lookup cur graph of
   Just (Node name posdep negdep) -> let pdep = getnodes posdep
@@ -147,7 +140,7 @@ hasnegCycle g =
 hasnegCycleN g n = has_negpathto g n [] [] n
 
 
-shortespathto:: Graph -> [Char] -> [[Char]] -> [Char] -> Maybe Int
+shortespathto:: Graph -> String -> [String] -> String -> Maybe Double
 shortespathto graph goal visited cur =
   case Map.lookup cur graph of
   Just (Node name posdep negdep) ->  let dep = (getnodes posdep) ++ (getnodes negdep) in
@@ -164,50 +157,69 @@ shortespathto graph goal visited cur =
   _ -> Nothing
 
 
-
+shortepospathto graph goal pvisited nvisited max (cur,w) =
+    if w > max
+     then shortespospathto graph goal pvisited nvisited w cur
+     else shortespospathto graph goal pvisited nvisited max cur
        
-shortespospathto:: Graph -> [Char] -> [[Char]] -> [[Char]] -> [Char] -> Maybe Int
-shortespospathto graph goal pvisited nvisited cur =
+shortespospathto:: Graph -> String -> [String] -> [String] -> Double -> String -> Maybe Double
+shortespospathto graph goal pvisited nvisited max cur =
   case Map.lookup cur graph of
   Just (Node name posdep negdep) -> let pdep = (getnodes posdep)
                                         ndep = (getnodes negdep)
                                     in
-                                    if elem goal pdep
-                                    then Just 1
-                                    else
+                                    case ffind goal posdep of
+                                    Just x -> if x > max then Just x
+                                                         else Just max
+                                    _ ->
                                       let new_pvisited = (name:pvisited)
-                                          mini = (maybe_minimum ( (map (shortespospathto graph goal new_pvisited nvisited) (pdep\\new_pvisited))
-                                                                ++(map (shortesnegpathto graph goal new_pvisited nvisited) (ndep\\nvisited)))
+                                          mini = (maybe_minimum ( (map (shortespospathto graph goal new_pvisited nvisited max) (pdep\\new_pvisited))
+                                                                ++(map (shortesnegpathto graph goal new_pvisited nvisited max) (ndep\\nvisited)))
                                                  )
                                       in
                                       case mini of
                                       Nothing -> Nothing
-                                      Just x  -> Just (1+x)
+                                      Just x  -> if x > max then Just x
+                                                            else Just max
                                                   
   _ -> Nothing
 
-  
-shortesnegpathto:: Graph -> [Char] -> [[Char]] -> [[Char]] -> [Char] -> Maybe Int
-shortesnegpathto graph goal pvisited nvisited cur =
+ffind:: String -> [(String,Double)] -> Maybe Double
+ffind x [] = Nothing
+ffind x ((s,w):rest) =
+  if s==x
+     then Just w
+     else ffind x rest
+
+
+shortenegpathto graph goal pvisited nvisited max (cur,w) =
+  if w > max
+     then shortesnegpathto graph goal pvisited nvisited w cur
+     else shortesnegpathto graph goal pvisited nvisited max cur
+     
+shortesnegpathto:: Graph -> String -> [String] -> [String] -> Double -> String -> Maybe Double
+shortesnegpathto graph goal pvisited nvisited max cur =
   case Map.lookup cur graph of
   Just (Node name posdep negdep) -> let pdep = (getnodes posdep)
                                         ndep = (getnodes negdep)
                                     in
-                                    if elem goal ndep
-                                    then Just 1
-                                    else
-                                    let new_nvisited = (name:nvisited)
-                                        mini = (maybe_minimum ( (map (shortesnegpathto graph goal pvisited new_nvisited) (pdep\\pvisited))
-                                                              ++(map (shortespospathto graph goal pvisited new_nvisited) (ndep\\new_nvisited)))
-                                               )
-                                    in
-                                    case mini of
-                                    Nothing -> Nothing
-                                    Just x  -> Just (1+x)
+                                    case ffind goal negdep of
+                                    Just x -> if x > max then Just x
+                                                         else Just max
+                                    _ ->
+                                      let new_nvisited = (name:nvisited)
+                                          mini = (maybe_minimum ( (map (shortesnegpathto graph goal pvisited new_nvisited max) (pdep\\pvisited))
+                                                                ++(map (shortespospathto graph goal pvisited new_nvisited max) (ndep\\new_nvisited)))
+                                                )
+                                      in
+                                      case mini of
+                                      Nothing -> Nothing
+                                      Just x  -> if x > max then Just x
+                                                            else Just max
 
   _ -> Nothing  
      
-maybe_minimum:: [Maybe Int] -> Maybe Int
+maybe_minimum:: [Maybe Double] -> Maybe Double
 maybe_minimum [] = Nothing
 maybe_minimum (Nothing:rest) = 
   let r = (maybe_minimum rest) in
@@ -224,11 +236,92 @@ maybe_minimum ((Just x):rest) =
 		    _  -> Just y
 
 
+
+getCandidateEdges:: Graph -> Double -> [Maybe Edge]
+getCandidateEdges graph alpha =
+  let nodes = Map.keys graph
+      tmp =  map (check graph alpha) nodes
+  in
+  flatten tmp
+
+flatten:: [[Maybe Edge]] -> [Maybe Edge]
+flatten [] = []
+flatten (x:xs) = x++(flatten xs)
+
+
+check:: Graph -> Double -> String -> [Maybe Edge]
+check graph alpha nodei =
+  case Map.lookup nodei graph of 
+  Just (Node name posdep negdep) ->
+    let e1 = map (check_pos graph alpha nodei) posdep
+        e2 = map (check_neg graph alpha nodei) negdep
+    in e1++e2
+  Nothing -> []
+
+
+  
+check_pos:: Graph -> Double ->  String -> (String,Double) -> Maybe Edge
+check_pos graph alpha nodei (nodek,weight) =
+--   trace ("checkp "++(show nodei)++(show nodek)++"\n"
+--   ) $
+  case Map.lookup nodei graph of
+       Just (Node name posdep negdep) -> let pdep = delete (nodek,weight) posdep
+                                             ndep = negdep
+                                             weights = (map second pdep) ++ (map second ndep)
+                                             spaths = (map (shortepospathto graph nodek [] [] 0) pdep) ++ (map (shortenegpathto graph nodek [] [] 0) ndep)
+                                             bothscores = zip weights spaths
+                                         in
+--                                          trace ( " show scores" ++"\n"
+--                                          ++"paths"++ (show paths) ++"\n"
+--                                          ++"spaths"++ (show spaths) ++"\n"
+--                                          ) $
+                                         if (test (alpha*weight) bothscores)
+                                         then Just (Edge nodei nodek True weight)
+                                         else Nothing
+       _ -> Nothing
+
+check_neg:: Graph -> Double ->  String -> (String,Double) -> Maybe Edge
+check_neg graph alpha nodei (nodek,weight) =
+--   trace ("checkn "++(show nodei)++" "++(show nodek)++"\n"
+--   ) $  
+  case Map.lookup nodei graph of
+       Just (Node name posdep negdep) -> let pdep = posdep
+                                             ndep = delete (nodek,weight) negdep
+                                             weights = (map (second) pdep) ++ (map (second) ndep)
+                                             spaths = (map (shortenegpathto graph nodek [] [] 0) pdep) ++ (map (shortepospathto graph nodek [] [] 0) ndep)
+                                             bothscores = zip weights spaths
+                                         in
+--                                          trace ( " show scores" ++"\n"
+--                                          ++"paths"++ (show paths) ++"\n"
+--                                          ++"spaths"++ (show spaths) ++"\n"
+--                                          ) $
+                                         if (test (alpha*weight) bothscores)
+                                         then Just (Edge nodei nodek False weight)
+                                         else Nothing                                         
+       _ -> Nothing
+                                         
+second (node,weight) =  Just weight
+
+
+test:: Double -> [(Maybe Double,Maybe Double)] -> Bool
+test k [] = False
+test k ((Just a,Just b):xs) =
+  trace ( "test k="++ (show k)++"vs\n"
+  ++"a="++(show a)++" b="++(show b)++"\n"
+  ) $
+  if ((a < k) && (b < k))
+     then True
+     else test k xs
+test k ((_,_):xs) = test k xs
      
--- transwesd:: Graph -> Graph
--- transwesd g = 
---   let check = letnegCycle_exist g 
---   in
+     
+transwesd:: Graph -> Double -> [Maybe Edge]
+transwesd graph alpha =
+  let check = hasnegCycle graph
+      nodes = Map.keys graph
+      candidates = getCandidateEdges graph alpha
+  in
+  candidates
      
      
      

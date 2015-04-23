@@ -32,7 +32,8 @@ main =
          contents <- readFile (head args)
          case readCSV contents of
            Left  err -> putStrLn ("ParseError: " ++ show err)
-           Right val -> putStrLn (show_g val)
+           Right val -> let g = toGraph val in                      
+                        putStrLn (show (transwesd g (0.95)))
    
      
      
