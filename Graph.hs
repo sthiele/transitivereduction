@@ -173,8 +173,8 @@ shortespospathto graph goal pvisited nvisited max cur =
                                                          else Just max
                                     _ ->
                                       let new_pvisited = (name:pvisited)
-                                          mini = (maybe_minimum ( (map (shortespospathto graph goal new_pvisited nvisited max) (pdep\\new_pvisited))
-                                                                ++(map (shortesnegpathto graph goal new_pvisited nvisited max) (ndep\\nvisited)))
+                                          mini = (maybe_minimum ( (map (shortepospathto graph goal new_pvisited nvisited max) (wo posdep new_pvisited))
+                                                                ++(map (shortenegpathto graph goal new_pvisited nvisited max) (wo negdep nvisited)))
                                                  )
                                       in
                                       case mini of
@@ -191,6 +191,11 @@ ffind x ((s,w):rest) =
      then Just w
      else ffind x rest
 
+wo::  [(String,Double)] -> [String] -> [(String,Double)]
+wo [] _ = []
+wo ((n,w):rest) names = if elem n names
+                           then wo rest names
+                           else ((n,w):(wo rest names))
 
 shortenegpathto graph goal pvisited nvisited max (cur,w) =
   if w > max
@@ -208,9 +213,9 @@ shortesnegpathto graph goal pvisited nvisited max cur =
                                                          else Just max
                                     _ ->
                                       let new_nvisited = (name:nvisited)
-                                          mini = (maybe_minimum ( (map (shortesnegpathto graph goal pvisited new_nvisited max) (pdep\\pvisited))
-                                                                ++(map (shortespospathto graph goal pvisited new_nvisited max) (ndep\\new_nvisited)))
-                                                )
+                                          mini = (maybe_minimum ( (map (shortenegpathto graph goal pvisited new_nvisited max) (wo posdep pvisited))
+                                                                ++(map (shortepospathto graph goal pvisited new_nvisited max) (wo negdep new_nvisited)))
+                                                 )
                                       in
                                       case mini of
                                       Nothing -> Nothing
