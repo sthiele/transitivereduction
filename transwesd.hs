@@ -28,14 +28,32 @@ main =
     if args==[]
        then putStrLn "No arguments given!"
        else do
-         putStrLn ("TransWesd in Haskell.")
+         putStrLn ("\n-- Placeholder ----------------------------------------\n")
          contents <- readFile (head args)
          case readCSV contents of
            Left  err -> putStrLn ("ParseError: " ++ show err)
            Right val -> let g = toGraph val in                      
-                        putStrLn (show (transwesd g (0.95)))
-   
-     
+--                         putStrLn (show (transwesd g (0.95)))
+                        putStrLn (
+                            "in nodes:       " ++ (show (get_in_nodes g))++"\n"
+                         ++ "out nodes:      " ++ (show (get_out_nodes g))++"\n"
+                         ++ "\n-- Cycles ---------------------------------------------\n"
+                         ++ "cyclic nodes:   " ++ (show (get_cyclic_nodes g))++"\n"
+                         ++ "negcyclic node: " ++ (show (get_neg_cyclic_nodes g))++"\n"
+                         ++ "\n-- Feedforward loops ----------------------------------\n"
+                         ++ "C1-FFl: " ++ (show (get_motif1 g))++"\n"
+                         ++ "C2-FFl: " ++ (show (get_motif2 g))++"\n"
+                         ++ "C3-FFl: " ++ (show (get_motif3 g))++"\n"
+                         ++ "C4-FFl: " ++ (show (get_motif4 g))++"\n"
+                         ++ "I1-FFl: " ++ (show (get_motif5 g))++"\n"
+                         ++ "I2-FFl: " ++ (show (get_motif6 g))++"\n"
+                         ++ "I3-FFl: " ++ (show (get_motif7 g))++"\n"
+                         ++ "I4-FFl: " ++ (show (get_motif8 g))++"\n"
+                         ++ "\n-- Dependency matrix ----------------------------------\n"
+                         ++ (matrix2string (dep_matrix g))++"\n"
+                        )
+
+
      
 show_g:: [Edge] -> [Char]
 show_g [] = ""
