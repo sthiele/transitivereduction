@@ -17,17 +17,23 @@
 
 module Graph (
   Node(..),
-  Graph(..),
-  toGraph,
   Edge(..),
+  toGraph,
+  filterEdges,
+  transformEdges,
+  getweights,
+  apply_to_weights,
+  Graph(..),
+  createRGraph,
   transwesd,
   get_in_nodes,
   get_out_nodes,
   get_cyclic_nodes,
   get_neg_cyclic_nodes,    
+  get_motifs,
   get_motif1,
   get_motif2,
-  get_motif3,     
+  get_motif3,
   get_motif4,
   get_motif5,
   get_motif6,
@@ -41,6 +47,7 @@ where
 import Data.Maybe
 import Data.List (nub, (\\), delete, intersperse )
 import qualified Data.Map as Map
+import System.Random
 import Debug.Trace
 
 
@@ -65,9 +72,71 @@ instance Show Edge where
   show (Edge s t sign w) = s++" -> "++t++" "++(show sign)++" "++(show w)
 
 
+filterEdges:: [Edge] -> (Edge -> Bool) -> [Edge]
+filterEdges [] _ = []
+filterEdges (e:es) f = if f e
+                          then (e:(filterEdges es f))
+                          else (filterEdges es f)
 
+
+getweights  [] = []
+getweights  ((Edge s t sign w) :es) = (w:(getweights es))
+
+
+setweights  [] _ = []
+setweights  _ [] = []
+setweights  ((Edge s t sign w) :es) (nw:ws)= ((Edge s t sign nw):(setweights es ws))
+
+apply_to_weights:: [Edge] -> ([Double]->[Double]) -> [Edge]
+apply_to_weights es f = let ws = getweights es
+                            nws = f ws
+                        in
+                        setweights es nws
+
+transformEdges:: [Edge] -> (Edge -> Edge) -> [Edge]
+transformEdges [] _ = []
+transformEdges (e:es) f = (f e:(transformEdges es f))
+                            
 type Graph =  Map.Map (String) (Node)
 
+createRGraph:: StdGen -> Int -> ([Edge],StdGen)
+createRGraph gen n =
+    let nodes = [1..n]
+        (nedges, ngen) = createRGraph2 gen nodes nodes
+    in
+    (nedges,ngen)
+
+createRGraph2:: StdGen -> [Int] -> [Int] -> ([Edge],StdGen)
+createRGraph2 gen [] _ =([],gen)
+createRGraph2 gen (n:ns) targets =
+  let stargets = targets \\ [n] -- no self loop
+      (edges, ngen) = createREdges gen stargets n
+      (rest,nngen) = createRGraph2 ngen ns targets
+  in
+  ((edges++rest),nngen)
+
+    
+createREdges:: StdGen -> [Int] -> Int -> ([Edge],StdGen)
+createREdges gen [] node = ([],gen)
+createREdges gen (n:ns) node =
+  let
+      (randomnumber1, gen2) = randomR (1,100) gen :: (Int, StdGen)
+      (randomsign, gen3) = randomR (1,100) gen2 :: (Int, StdGen)
+      (randomvalue, gen4) = randomR (0.0,1.0) gen3 :: (Double, StdGen)
+      (rest,gen5) = (createREdges gen4 ns node)
+  in
+--   trace ("randomnumber " ++ (show randomnumber1)
+--       ++ " randomsign " ++ (show (randomsign>10))
+--       ++ " randomvalue " ++ (show randomvalue)
+--        ) $
+  if randomnumber1 < 30
+  then
+   ( ((Edge (show node) (show n) (randomsign>10) randomvalue):rest), gen5)
+  else (rest,gen5)
+
+
+
+  
 toGraph:: [Edge] -> Graph
 toGraph x = toGraph2 x Map.empty
 
@@ -144,7 +213,7 @@ has_negpathto graph goal pvisited nvisited cur =
                                     else
                                       let new_nvisited = (name:nvisited)
                                       in
-                                      or ((map (has_negpathto graph goal pvisited new_nvisited) (pdep\\pvisited)) ++ (map (has_pospathto graph goal pvisited new_nvisited) (ndep\\new_nvisited)))
+                                      or ((map (has_negpathto graph goal pvisited new_nvisited) (pdep\\new_nvisited)) ++ (map (has_pospathto graph goal pvisited new_nvisited) (ndep\\pvisited)))
   _ -> False
  
 has_cyclefreepospathto:: Graph -> String -> [String] -> String -> Bool
@@ -214,9 +283,13 @@ shortespathto graph goal visited cur =
 
 
 shortepospathto graph goal pvisited nvisited max (cur,w) =
+--     trace ("try pos node "++cur++" weight "++(show w)++"\n") $
     if w > max
-     then shortespospathto graph goal pvisited nvisited w cur
-     else shortespospathto graph goal pvisited nvisited max cur
+     then
+--      trace ("update max "++(show w)++"\n") $
+     shortespospathto graph goal pvisited nvisited w cur
+     else
+     shortespospathto graph goal pvisited nvisited max cur
        
 shortespospathto:: Graph -> String -> [String] -> [String] -> Double -> String -> Maybe Double
 shortespospathto graph goal pvisited nvisited max cur =
@@ -225,8 +298,13 @@ shortespospathto graph goal pvisited nvisited max cur =
                                         ndep = (getnodes negdep)
                                     in
                                     case ffind goal posdep of
-                                    Just x -> if x > max then Just x
-                                                         else Just max
+                                    Just x -> if x > max
+                                                 then
+--                                                  trace ("found "++(show x)++"\n") $
+                                                 Just x
+                                                 else
+--                                                  trace ("found "++(show max)++"\n") $
+                                                 Just max
                                     _ ->
                                       let new_pvisited = (name:pvisited)
                                           mini = (maybe_minimum ( (map (shortepospathto graph goal new_pvisited nvisited max) (wo posdep new_pvisited))
@@ -254,8 +332,11 @@ wo ((n,w):rest) names = if elem n names
                            else ((n,w):(wo rest names))
 
 shortenegpathto graph goal pvisited nvisited max (cur,w) =
+--   trace ("try neg node "++cur++" weight "++(show w)++"\n") $
   if w > max
-     then shortesnegpathto graph goal pvisited nvisited w cur
+     then
+--      trace ("update max "++(show w)++"\n") $
+     shortesnegpathto graph goal pvisited nvisited w cur
      else shortesnegpathto graph goal pvisited nvisited max cur
      
 shortesnegpathto:: Graph -> String -> [String] -> [String] -> Double -> String -> Maybe Double
@@ -265,12 +346,17 @@ shortesnegpathto graph goal pvisited nvisited max cur =
                                         ndep = (getnodes negdep)
                                     in
                                     case ffind goal negdep of
-                                    Just x -> if x > max then Just x
-                                                         else Just max
+                                    Just x -> if x > max
+                                                 then
+--                                                  trace ("found "++(show x)++"\n") $
+                                                 Just x
+                                                 else
+--                                                  trace ("found "++(show max)++"\n") $
+                                                 Just max
                                     _ ->
                                       let new_nvisited = (name:nvisited)
-                                          mini = (maybe_minimum ( (map (shortenegpathto graph goal pvisited new_nvisited max) (wo posdep pvisited))
-                                                                ++(map (shortepospathto graph goal pvisited new_nvisited max) (wo negdep new_nvisited)))
+                                          mini = (maybe_minimum ( (map (shortenegpathto graph goal pvisited new_nvisited max) (wo posdep new_nvisited))
+                                                                ++(map (shortepospathto graph goal pvisited new_nvisited max) (wo negdep pvisited)))
                                                  )
                                       in
                                       case mini of
@@ -312,8 +398,11 @@ flatten (x:xs) = x++(flatten xs)
 
 check:: Graph -> Double -> String -> [Maybe Edge]
 check graph alpha nodei =
+--   trace ("check_node "++nodei++"\n"
+--   ) $  
   case Map.lookup nodei graph of 
   Just (Node name posdep negdep) ->
+--     trace ("check_node "++name++" "++(show posdep)++" "++(show negdep)++"\n" ) $
     let e1 = map (check_pos graph alpha nodei) posdep
         e2 = map (check_neg graph alpha nodei) negdep
     in e1++e2
@@ -323,8 +412,7 @@ check graph alpha nodei =
   
 check_pos:: Graph -> Double ->  String -> (String,Double) -> Maybe Edge
 check_pos graph alpha nodei (nodek,weight) =
---   trace ("checkp "++(show nodei)++(show nodek)++"\n"
---   ) $
+--   trace ("  checkp "++(show nodei)++"->"++(show nodek)++" "++(show weight)++"\n" ) $
   case Map.lookup nodei graph of
        Just (Node name posdep negdep) -> let pdep = delete (nodek,weight) posdep
                                              ndep = negdep
@@ -333,18 +421,17 @@ check_pos graph alpha nodei (nodek,weight) =
                                              bothscores = zip weights spaths
                                          in
 --                                          trace ( " show scores" ++"\n"
---                                          ++"paths"++ (show paths) ++"\n"
+--                                          ++"weights"++ (show weights) ++"\n"
 --                                          ++"spaths"++ (show spaths) ++"\n"
 --                                          ) $
-                                         if (test (alpha*weight) bothscores)
+                                         if (test alpha weight bothscores)
                                          then Just (Edge nodei nodek True weight)
                                          else Nothing
        _ -> Nothing
 
 check_neg:: Graph -> Double ->  String -> (String,Double) -> Maybe Edge
 check_neg graph alpha nodei (nodek,weight) =
---   trace ("checkn "++(show nodei)++" "++(show nodek)++"\n"
---   ) $  
+--   trace ("  checkn "++(show nodei)++"->"++(show nodek)++" "++(show weight)++"\n" ) $
   case Map.lookup nodei graph of
        Just (Node name posdep negdep) -> let pdep = posdep
                                              ndep = delete (nodek,weight) negdep
@@ -353,10 +440,10 @@ check_neg graph alpha nodei (nodek,weight) =
                                              bothscores = zip weights spaths
                                          in
 --                                          trace ( " show scores" ++"\n"
---                                          ++"paths"++ (show paths) ++"\n"
+--                                          ++"weights"++ (show weights) ++"\n"
 --                                          ++"spaths"++ (show spaths) ++"\n"
 --                                          ) $
-                                         if (test (alpha*weight) bothscores)
+                                         if (test alpha weight bothscores)
                                          then Just (Edge nodei nodek False weight)
                                          else Nothing                                         
        _ -> Nothing
@@ -364,16 +451,16 @@ check_neg graph alpha nodei (nodek,weight) =
 second (node,weight) =  Just weight
 
 
-test:: Double -> [(Maybe Double,Maybe Double)] -> Bool
-test k [] = False
-test k ((Just a,Just b):xs) =
-  trace ( "test k="++ (show k)++"vs\n"
-  ++"a="++(show a)++" b="++(show b)++"\n"
-  ) $
-  if ((a < k) && (b < k))
+test:: Double -> Double -> [(Maybe Double,Maybe Double)] -> Bool
+test alpha k [] = False
+test alpha k ((Just a,Just b):xs) =
+--   trace ( "     test alpha k= "++(show alpha)++" "++(show k)++" vs\n"
+--   ++"weight="++(show a)++" spath= "++(show b)++"\n"
+--   ) $
+  if (((alpha*k)> a) && ((alpha*k)> b))
      then True
-     else test k xs
-test k ((_,_):xs) = test k xs
+     else test alpha k xs
+test alpha k (x:xs) = test alpha k xs
      
      
 transwesd:: Graph -> Double -> [Maybe Edge]
@@ -413,194 +500,152 @@ get_neg_cyclic_nodes graph =
       maybe_cnodes = map (check_neg_cycle graph) nodes
   in
   catMaybes maybe_cnodes
-  
-     
-get_motif1:: Graph -> [(String,String,String)]
+
+type Motif = (String,String,String)
+
+get_motif1:: Graph -> [Motif]
 get_motif1 graph =
-  let nodes = Map.keys graph
-      combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes]
-      maybe_motifs = map (checkmt1 graph) combies
+ let nodes = Map.elems graph
+     combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes, n1/=n2, n1/=n3, n2/=n3 ]
+     motifs = mapMaybe checkmt1 combies
   in
-  catMaybes maybe_motifs
-  
-checkmt1:: Graph -> (String,String,String) -> Maybe (String,String,String)
-checkmt1 graph (x,y,z) =
-  case Map.lookup x graph of
-       Nothing -> Nothing
-       Just (Node nx pdx ndx) ->
-        case Map.lookup y graph of
-            Nothing -> Nothing
-            Just (Node ny pdy ndy) ->
-             case Map.lookup z graph of
-                 Nothing -> Nothing
-                 Just (Node nz pdz ndz) ->
-                  if (elem nz (getnodes pdx)) && (elem ny (getnodes pdx)) && (elem nz (getnodes pdy))
-                    then Just (x,y,z)
-                    else Nothing
-  
-     
-get_motif2:: Graph -> [(String,String,String)]
+  motifs
+
+get_motif2:: Graph -> [Motif]
 get_motif2 graph =
-  let nodes = Map.keys graph
-      combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes]
-      maybe_motifs = map (checkmt2 graph) combies
+ let nodes = Map.elems graph
+     combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes, n1/=n2, n1/=n3, n2/=n3 ]
+     motifs = mapMaybe checkmt2 combies
   in
-  catMaybes maybe_motifs
+  motifs
 
-checkmt2:: Graph -> (String,String,String) -> Maybe (String,String,String)
-checkmt2 graph (x,y,z) =
-  case Map.lookup x graph of
-       Nothing -> Nothing
-       Just (Node nx pdx ndx) ->
-        case Map.lookup y graph of
-            Nothing -> Nothing
-            Just (Node ny pdy ndy) ->
-             case Map.lookup z graph of
-                 Nothing -> Nothing
-                 Just (Node nz pdz ndz) ->
-                  if (elem nz (getnodes ndx)) && (elem ny (getnodes ndx)) && (elem nz (getnodes pdy))
-                    then Just (x,y,z)
-                    else Nothing     
-     
-get_motif3:: Graph -> [(String,String,String)]
+get_motif3:: Graph -> [Motif]
 get_motif3 graph =
-  let nodes = Map.keys graph
-      combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes]
-      maybe_motifs = map (checkmt3 graph) combies
+ let nodes = Map.elems graph
+     combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes, n1/=n2, n1/=n3, n2/=n3 ]
+     motifs = mapMaybe checkmt3 combies
   in
-  catMaybes maybe_motifs
+  motifs
 
-checkmt3:: Graph -> (String,String,String) -> Maybe (String,String,String)
-checkmt3 graph (x,y,z) =
-  case Map.lookup x graph of
-       Nothing -> Nothing
-       Just (Node nx pdx ndx) ->
-        case Map.lookup y graph of
-            Nothing -> Nothing
-            Just (Node ny pdy ndy) ->
-             case Map.lookup z graph of
-                 Nothing -> Nothing
-                 Just (Node nz pdz ndz) ->
-                  if (elem nz (getnodes ndx)) && (elem ny (getnodes pdx)) && (elem nz (getnodes ndy))
-                    then Just (x,y,z)
-                    else Nothing  
-
-
-get_motif4:: Graph -> [(String,String,String)]
+get_motif4:: Graph -> [Motif]
 get_motif4 graph =
-  let nodes = Map.keys graph
-      combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes]
-      maybe_motifs = map (checkmt4 graph) combies
+ let nodes = Map.elems graph
+     combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes, n1/=n2, n1/=n3, n2/=n3 ]
+     motifs = mapMaybe checkmt4 combies
   in
-  catMaybes maybe_motifs
+  motifs
 
-checkmt4:: Graph -> (String,String,String) -> Maybe (String,String,String)
-checkmt4 graph (x,y,z) =
-  case Map.lookup x graph of
-       Nothing -> Nothing
-       Just (Node nx pdx ndx) ->
-        case Map.lookup y graph of
-            Nothing -> Nothing
-            Just (Node ny pdy ndy) ->
-             case Map.lookup z graph of
-                 Nothing -> Nothing
-                 Just (Node nz pdz ndz) ->
-                  if (elem nz (getnodes pdx)) && (elem ny (getnodes ndx)) && (elem nz (getnodes ndy))
-                    then Just (x,y,z)
-                    else Nothing
-
-get_motif5:: Graph -> [(String,String,String)]
+get_motif5:: Graph -> [Motif]
 get_motif5 graph =
-  let nodes = Map.keys graph
-      combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes]
-      maybe_motifs = map (checkmt5 graph) combies
+ let nodes = Map.elems graph
+     combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes, n1/=n2, n1/=n3, n2/=n3 ]
+     motifs = mapMaybe checkmt5 combies
   in
-  catMaybes maybe_motifs
+  motifs
 
-checkmt5:: Graph -> (String,String,String) -> Maybe (String,String,String)
-checkmt5 graph (x,y,z) =
-  case Map.lookup x graph of
-       Nothing -> Nothing
-       Just (Node nx pdx ndx) ->
-        case Map.lookup y graph of
-            Nothing -> Nothing
-            Just (Node ny pdy ndy) ->
-             case Map.lookup z graph of
-                 Nothing -> Nothing
-                 Just (Node nz pdz ndz) ->
-                  if (elem nz (getnodes pdx)) && (elem ny (getnodes pdx)) && (elem nz (getnodes ndy))
-                    then Just (x,y,z)
-                    else Nothing
-
-get_motif6:: Graph -> [(String,String,String)]
+get_motif6:: Graph -> [Motif]
 get_motif6 graph =
-  let nodes = Map.keys graph
-      combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes]
-      maybe_motifs = map (checkmt6 graph) combies
+ let nodes = Map.elems graph
+     combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes, n1/=n2, n1/=n3, n2/=n3 ]
+     motifs = mapMaybe checkmt6 combies
   in
-  catMaybes maybe_motifs
+  motifs
 
-checkmt6:: Graph -> (String,String,String) -> Maybe (String,String,String)
-checkmt6 graph (x,y,z) =
-  case Map.lookup x graph of
-       Nothing -> Nothing
-       Just (Node nx pdx ndx) ->
-        case Map.lookup y graph of
-            Nothing -> Nothing
-            Just (Node ny pdy ndy) ->
-             case Map.lookup z graph of
-                 Nothing -> Nothing
-                 Just (Node nz pdz ndz) ->
-                  if (elem nz (getnodes ndx)) && (elem ny (getnodes ndx)) && (elem nz (getnodes ndy))
-                    then Just (x,y,z)
-                    else Nothing
-
-get_motif7:: Graph -> [(String,String,String)]
+get_motif7:: Graph -> [Motif]
 get_motif7 graph =
-  let nodes = Map.keys graph
-      combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes]
-      maybe_motifs = map (checkmt7 graph) combies
+ let nodes = Map.elems graph
+     combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes, n1/=n2, n1/=n3, n2/=n3 ]
+     motifs = mapMaybe checkmt7 combies
   in
-  catMaybes maybe_motifs
+  motifs
 
-checkmt7:: Graph -> (String,String,String) -> Maybe (String,String,String)
-checkmt7 graph (x,y,z) =
-  case Map.lookup x graph of
-       Nothing -> Nothing
-       Just (Node nx pdx ndx) ->
-        case Map.lookup y graph of
-            Nothing -> Nothing
-            Just (Node ny pdy ndy) ->
-             case Map.lookup z graph of
-                 Nothing -> Nothing
-                 Just (Node nz pdz ndz) ->
-                  if (elem nz (getnodes ndx)) && (elem ny (getnodes pdx)) && (elem nz (getnodes pdy))
-                    then Just (x,y,z)
-                    else Nothing
-
-get_motif8:: Graph -> [(String,String,String)]
+get_motif8:: Graph -> [Motif]
 get_motif8 graph =
-  let nodes = Map.keys graph
-      combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes]
-      maybe_motifs = map (checkmt8 graph) combies
+ let nodes = Map.elems graph
+     combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes, n1/=n2, n1/=n3, n2/=n3 ]
+     motifs = mapMaybe checkmt8 combies
   in
-  catMaybes maybe_motifs
+  motifs  
 
-checkmt8:: Graph -> (String,String,String) -> Maybe (String,String,String)
-checkmt8 graph (x,y,z) =
-  case Map.lookup x graph of
-       Nothing -> Nothing
-       Just (Node nx pdx ndx) ->
-        case Map.lookup y graph of
-            Nothing -> Nothing
-            Just (Node ny pdy ndy) ->
-             case Map.lookup z graph of
-                 Nothing -> Nothing
-                 Just (Node nz pdz ndz) ->
-                  if (elem nz (getnodes pdx)) && (elem ny (getnodes ndx)) && (elem nz (getnodes pdy))
-                    then Just (x,y,z)
-                    else Nothing
+get_motifs:: Graph -> ([Motif] -- c1 ffl
+                      ,[Motif] -- c2 ffl
+                      ,[Motif] -- c3 ffl
+                      ,[Motif] -- c4 ffl
+                      ,[Motif] -- 11 ffl
+                      ,[Motif] -- 12 ffl
+                      ,[Motif] -- 13 ffl
+                      ,[Motif]) -- 14 ffl                    
+get_motifs graph =
+ let nodes = Map.elems graph
+     combies = [(n1,n2,n3) | n1 <- nodes, n2 <- nodes, n3 <- nodes, n1/=n2, n1/=n3, n2/=n3 ]
+     motif1 = mapMaybe checkmt1 combies
+     motif2 = mapMaybe checkmt2 combies
+     motif3 = mapMaybe checkmt3 combies
+     motif4 = mapMaybe checkmt4 combies
+     motif5 = mapMaybe checkmt5 combies
+     motif6 = mapMaybe checkmt6 combies
+     motif7 = mapMaybe checkmt7 combies
+     motif8 = mapMaybe checkmt8 combies
+  in
+  (motif1
+  ,motif2
+  ,motif3
+  ,motif4
+  ,motif5
+  ,motif6
+  ,motif7
+  ,motif8)
 
+      
+checkmt1:: (Node,Node,Node) -> Maybe Motif
+checkmt1 ((Node nx pdx ndx), (Node ny pdy ndy), (Node nz pdz ndz)) =
+  if (elem nz (getnodes pdx)) && (elem ny (getnodes pdx)) && (elem nz (getnodes pdy))
+     then Just (nx,ny,nz)
+     else Nothing
+
+
+checkmt2:: (Node,Node,Node) -> Maybe Motif
+checkmt2 ((Node nx pdx ndx), (Node ny pdy ndy), (Node nz pdz ndz)) =
+  if (elem nz (getnodes ndx)) && (elem ny (getnodes ndx)) && (elem nz (getnodes pdy))
+     then Just (nx,ny,nz)
+     else Nothing
+
+checkmt3:: (Node,Node,Node) -> Maybe Motif
+checkmt3 ((Node nx pdx ndx), (Node ny pdy ndy), (Node nz pdz ndz)) =
+  if (elem nz (getnodes ndx)) && (elem ny (getnodes pdx)) && (elem nz (getnodes ndy))
+     then Just (nx,ny,nz)
+     else Nothing
+
+checkmt4:: (Node,Node,Node) -> Maybe Motif
+checkmt4 ((Node nx pdx ndx), (Node ny pdy ndy), (Node nz pdz ndz)) =
+  if (elem nz (getnodes pdx)) && (elem ny (getnodes ndx)) && (elem nz (getnodes ndy))
+     then Just (nx,ny,nz)
+     else Nothing
+
+checkmt5:: (Node,Node,Node) -> Maybe Motif
+checkmt5 ((Node nx pdx ndx), (Node ny pdy ndy), (Node nz pdz ndz)) =
+  if (elem nz (getnodes pdx)) && (elem ny (getnodes pdx)) && (elem nz (getnodes ndy))
+     then Just (nx,ny,nz)
+     else Nothing
+  
+checkmt6:: (Node,Node,Node) -> Maybe Motif
+checkmt6 ((Node nx pdx ndx), (Node ny pdy ndy), (Node nz pdz ndz)) =
+  if (elem nz (getnodes ndx)) && (elem ny (getnodes ndx)) && (elem nz (getnodes ndy))
+     then Just (nx,ny,nz)
+     else Nothing
+
+checkmt7:: (Node,Node,Node) -> Maybe Motif
+checkmt7 ((Node nx pdx ndx), (Node ny pdy ndy), (Node nz pdz ndz)) =
+  if (elem nz (getnodes ndx)) && (elem ny (getnodes pdx)) && (elem nz (getnodes pdy))
+     then Just (nx,ny,nz)
+     else Nothing
+
+checkmt8:: (Node,Node,Node) -> Maybe Motif
+checkmt8 ((Node nx pdx ndx), (Node ny pdy ndy), (Node nz pdz ndz)) =
+  if (elem nz (getnodes pdx)) && (elem ny (getnodes ndx)) && (elem nz (getnodes pdy))
+     then Just (nx,ny,nz)
+     else Nothing
+     
 
 get_in_nodes:: Graph -> [String]
 get_in_nodes graph =
