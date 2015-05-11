@@ -463,13 +463,13 @@ test alpha k ((Just a,Just b):xs) =
 test alpha k (x:xs) = test alpha k xs
      
      
-transwesd:: Graph -> Double -> [Maybe Edge]
+transwesd:: Graph -> Double -> [ Edge]
 transwesd graph alpha =
   let check = hasnegCycle graph
       nodes = Map.keys graph
       candidates = getCandidateEdges graph alpha
   in
-  candidates
+  catMaybes candidates
      
 
 check_cycle:: Graph -> String -> Maybe String

@@ -66,20 +66,20 @@ main =
                             b = filterEdges a myfilter
                             c = transformEdges b mytransformation
                             g = toGraph a
-                            (c1,c2,c3,c4,i1,i2,i3,i4) = get_motifs g
---                             c1 = get_motif1 g
---                             c2 = get_motif2 g
---                             c3 = get_motif3 g
---                             c4 = get_motif4 g
---                             i1 = get_motif5 g
---                             i2 = get_motif6 g
---                             i3 = get_motif7 g
---                             i4 = get_motif8 g
+--                             (c1,c2,c3,c4,i1,i2,i3,i4) = get_motifs g
+                            c1 = get_motif1 g
+                            c2 = get_motif2 g
+                            c3 = get_motif3 g
+                            c4 = get_motif4 g
+                            i1 = get_motif5 g
+                            i2 = get_motif6 g
+                            i3 = get_motif7 g
+                            i4 = get_motif8 g
 
                             gen = mkStdGen 100
                             (rgraph, ngen) = createRGraph gen 100
                         in
-                        trace ("ori "++(show (length graph))++" filtered "++(show (length b))++"\n") $
+                        trace ("ori "++(show (length a))++" filtered "++(show (length b))++"\n") $
                         putStrLn (
 --                             "graph " ++ (show graph) ++"\n" ++
 --                             "normalized " ++ (show a) ++"\n" ++
