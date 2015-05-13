@@ -16,6 +16,7 @@
 -- along with xxxx.  If not, see <http://www.gnu.org/licenses/>.
 
 module Graph (
+  createEdgesfromMat,
   Node(..),
   Edge(..),
   toGraph,
@@ -41,6 +42,10 @@ module Graph (
   get_motif8,
   dep_matrix,
   matrix2string,
+  get_ds,
+  get_pos,
+  get_neg,
+  check_properties,
 )
 where
 
@@ -71,7 +76,39 @@ data Edge = Edge { source::String
 instance Show Edge where
   show (Edge s t sign w) = s++" -> "++t++" "++(show sign)++" "++(show w)
 
+createEdgesfromMat :: ([String],[String],[[Double]],[[Double]]) -> [Edge]
 
+createEdgesfromMat ([],_,_,_) = []
+createEdgesfromMat ((s:rs),targets, adj, log2s) =
+  let target_adj = map head adj
+      target_log2 = map head log2s
+      remain_adj = map tail adj 
+      remain_logs = map tail log2s
+      edges1 = createEdgesfromTargetlist (s,targets,target_adj,target_log2)
+  in
+  edges1++( createEdgesfromMat (rs,targets,remain_adj,remain_logs))
+
+createEdgesfromTargetlist:: (String    -- source node
+                            ,[String]  -- list of target nodes
+                            ,[Double]  -- list of adj values
+                            ,[Double]) -- list of log2 values
+                         -> [Edge]     -- list of edges
+                        
+createEdgesfromTargetlist (s,[],_,_) = []
+createEdgesfromTargetlist (s,(t:ts),(a:as),(l:ls)) =
+  if a < 0.05
+  then
+    if l > 1
+    then ((Edge s t True a):(createEdgesfromTargetlist (s,ts,as,ls)))
+    else
+      if l < -1
+      then ((Edge s t False a):(createEdgesfromTargetlist (s,ts,as,ls)))
+      else (createEdgesfromTargetlist (s,ts,as,ls))
+  else (createEdgesfromTargetlist (s,ts,as,ls))
+
+  
+
+  
 filterEdges:: [Edge] -> (Edge -> Bool) -> [Edge]
 filterEdges [] _ = []
 filterEdges (e:es) f = if f e
@@ -283,7 +320,7 @@ shortespathto graph goal visited cur =
 
 
 shortepospathto graph goal pvisited nvisited max (cur,w) =
---     trace ("try pos node "++cur++" weight "++(show w)++"\n") $
+    trace ("try pos node "++cur++" weight "++(show w)++"\n") $
     if w > max
      then
 --      trace ("update max "++(show w)++"\n") $
@@ -332,7 +369,7 @@ wo ((n,w):rest) names = if elem n names
                            else ((n,w):(wo rest names))
 
 shortenegpathto graph goal pvisited nvisited max (cur,w) =
---   trace ("try neg node "++cur++" weight "++(show w)++"\n") $
+  trace ("try neg node "++cur++" weight "++(show w)++"\n") $
   if w > max
      then
 --      trace ("update max "++(show w)++"\n") $
@@ -383,7 +420,16 @@ maybe_minimum ((Just x):rest) =
 		    _  -> Just y
 
 
+transwesd:: Graph -> Double -> [ Edge]
+transwesd graph alpha =
+  let
+--       check = hasnegCycle graph
+--       nodes = Map.keys graph
+      candidates = getCandidateEdges graph alpha
+  in
+  catMaybes candidates
 
+    
 getCandidateEdges:: Graph -> Double -> [Maybe Edge]
 getCandidateEdges graph alpha =
   let nodes = Map.keys graph
@@ -398,11 +444,11 @@ flatten (x:xs) = x++(flatten xs)
 
 check:: Graph -> Double -> String -> [Maybe Edge]
 check graph alpha nodei =
---   trace ("check_node "++nodei++"\n"
---   ) $  
+  trace ("check_node "++nodei++"\n"
+  ) $
   case Map.lookup nodei graph of 
   Just (Node name posdep negdep) ->
---     trace ("check_node "++name++" "++(show posdep)++" "++(show negdep)++"\n" ) $
+    trace ("check_node "++name++" "++(show posdep)++" "++(show negdep)++"\n" ) $
     let e1 = map (check_pos graph alpha nodei) posdep
         e2 = map (check_neg graph alpha nodei) negdep
     in e1++e2
@@ -412,7 +458,7 @@ check graph alpha nodei =
   
 check_pos:: Graph -> Double ->  String -> (String,Double) -> Maybe Edge
 check_pos graph alpha nodei (nodek,weight) =
---   trace ("  checkp "++(show nodei)++"->"++(show nodek)++" "++(show weight)++"\n" ) $
+  trace ("  checkp "++(show nodei)++"->"++(show nodek)++" "++(show weight)++"\n" ) $
   case Map.lookup nodei graph of
        Just (Node name posdep negdep) -> let pdep = delete (nodek,weight) posdep
                                              ndep = negdep
@@ -431,7 +477,7 @@ check_pos graph alpha nodei (nodek,weight) =
 
 check_neg:: Graph -> Double ->  String -> (String,Double) -> Maybe Edge
 check_neg graph alpha nodei (nodek,weight) =
---   trace ("  checkn "++(show nodei)++"->"++(show nodek)++" "++(show weight)++"\n" ) $
+  trace ("  checkn "++(show nodei)++"->"++(show nodek)++" "++(show weight)++"\n" ) $
   case Map.lookup nodei graph of
        Just (Node name posdep negdep) -> let pdep = posdep
                                              ndep = delete (nodek,weight) negdep
@@ -454,22 +500,16 @@ second (node,weight) =  Just weight
 test:: Double -> Double -> [(Maybe Double,Maybe Double)] -> Bool
 test alpha k [] = False
 test alpha k ((Just a,Just b):xs) =
---   trace ( "     test alpha k= "++(show alpha)++" "++(show k)++" vs\n"
---   ++"weight="++(show a)++" spath= "++(show b)++"\n"
---   ) $
+  trace ( "     test alpha k= "++(show alpha)++" "++(show k)++" vs\n"
+  ++"weight="++(show a)++" spath= "++(show b)++"\n"
+  ) $
   if (((alpha*k)> a) && ((alpha*k)> b))
      then True
      else test alpha k xs
 test alpha k (x:xs) = test alpha k xs
      
      
-transwesd:: Graph -> Double -> [ Edge]
-transwesd graph alpha =
-  let check = hasnegCycle graph
-      nodes = Map.keys graph
-      candidates = getCandidateEdges graph alpha
-  in
-  catMaybes candidates
+
      
 
 check_cycle:: Graph -> String -> Maybe String
@@ -710,3 +750,52 @@ get_readouts m r =
   let rx = [ (show v) | (x,o,v) <- m, r==o]
       bla = r++ " \t| "++ (flatten (intersperse " | " rx))
   in bla
+
+get_ds :: Graph ->  String -> [String]
+get_ds g s =
+--   trace ("getds: "++ s ++"\n") $
+  get_downstream g [] s
+
+
+get_downstream1:: Graph -> [String] -> [String] -> [String]
+get_downstream1 g found [] = found
+get_downstream1 g found (n:ns) =
+  let found'= get_downstream g found n in
+  get_downstream1 g found' ns
+  
+   
+get_downstream:: Graph -> [String] -> String -> [String]
+get_downstream g found s =
+--   trace ("getds: "++ s ++"\n") $
+    case Map.lookup s g of
+      Nothing -> found
+      Just (Node name pos neg) -> let downstream = (((getnodes pos) ++ (getnodes neg)) \\ found)
+                                      found' = found++ (nub downstream)
+                                  in
+                                  get_downstream1 g found' downstream
+
+
+get_pos:: Graph ->  String -> [String]
+get_pos g  s =
+    case Map.lookup s g of
+      Nothing -> []
+      Just (Node name pos neg) -> getnodes pos
+
+get_neg:: Graph ->  String -> [String]
+get_neg g  s =
+    case Map.lookup s g of
+      Nothing -> []
+      Just (Node name pos neg) -> getnodes neg
+                                        
+check_properties:: [(String,String)] -- map Node Property
+                -> [(String,Int)]    -- acummulator how often a property
+                -> [String]          -- list of nodes
+                -> [(String,Int)]    -- how many nodes have a property
+                
+check_properties m acc [] = acc
+check_properties m acc (n:ns) =
+  let props = [ prop | (node,prop) <- m, n==node]
+      acc1  = [ (prop,i) | (prop,i) <- acc, not (elem prop props) ]
+      acc2  = [ (prop,i+1) | (prop,i) <- acc, elem prop props ]
+  in
+  check_properties m (acc1++acc2) ns

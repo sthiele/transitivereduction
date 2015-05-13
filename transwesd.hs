@@ -35,7 +35,7 @@ myfilter (Edge s t sign w) =
     
 mytransformation:: Edge -> Edge
 mytransformation (Edge s t sign w) =
-  let new_w = 1 - (abs w) in
+  let new_w = 20 * (abs w) in
   (Edge s t sign new_w)
 
 -- normalize :: (Floating a) => [a] -> [a]
@@ -54,56 +54,75 @@ main:: IO ()
 main =
   do
     args <- getArgs
-    if args==[]
-       then putStrLn "No arguments given!"
-       else do
+    if length args<2
+       then putStrLn "to few arguments given!"
+       else
+         let (file1:file2:_)=args in
+         do
          putStrLn ("\n-- Placeholder ----------------------------------------\n")
-         contents <- readFile (head args)
-         case readCSV contents of
+         content1 <- readFile file1
+         content2 <- readFile file2
+         case readCSV2 content1 of
            Left  err -> putStrLn ("ParseError: " ++ show err)
-           Right val -> let graph = val
-                            a = apply_to_weights graph normalize
-                            b = filterEdges a myfilter
-                            c = transformEdges b mytransformation
-                            g = toGraph a
---                             (c1,c2,c3,c4,i1,i2,i3,i4) = get_motifs g
-                            c1 = get_motif1 g
-                            c2 = get_motif2 g
-                            c3 = get_motif3 g
-                            c4 = get_motif4 g
-                            i1 = get_motif5 g
-                            i2 = get_motif6 g
-                            i3 = get_motif7 g
-                            i4 = get_motif8 g
+           Right (s,t,adjmat) ->
+             case readCSV2 content2 of
+                  Left err -> putStrLn ("ParseError: " ++ show err)
+                  Right (_,_,logmat) -> let e = createEdgesfromMat (s,t,adjmat,logmat)
+                                            e2 = transformEdges e mytransformation
+                                            graph = toGraph e2
+                                        in
+                                          
+                                          putStrLn (
+                                            (show (transwesd graph 0.95))
+                                          )
+                              
 
-                            gen = mkStdGen 100
-                            (rgraph, ngen) = createRGraph gen 100
-                        in
-                        trace ("ori "++(show (length a))++" filtered "++(show (length b))++"\n") $
-                        putStrLn (
---                             "graph " ++ (show graph) ++"\n" ++
---                             "normalized " ++ (show a) ++"\n" ++
---                             "filtered " ++ (show b) ++"\n" ++
-                            
-                            "in nodes:       " ++ (show (get_in_nodes g))++"\n"
-                         ++ "out nodes:      " ++ (show (get_out_nodes g))++"\n"
-                         ++ "\n-- Cycles ---------------------------------------------\n"
-                         ++ "cyclic nodes:   " ++ (show (get_cyclic_nodes g))++"\n"
-                         ++ "negcyclic node: " ++ (show (get_neg_cyclic_nodes g))++"\n"
-                         ++ "\n-- Feedforward loops ----------------------------------\n"
-                         ++ "C1-FFl: " ++ (show c1)++"\n"
-                         ++ "C2-FFl: " ++ (show c2)++"\n"
-                         ++ "C3-FFl: " ++ (show c3)++"\n"
-                         ++ "C4-FFl: " ++ (show c4)++"\n"
-                         ++ "I1-FFl: " ++ (show i1)++"\n"
-                         ++ "I2-FFl: " ++ (show i2)++"\n"
-                         ++ "I3-FFl: " ++ (show i3)++"\n"
-                         ++ "I4-FFl: " ++ (show i4)++"\n"
-                         ++ "\n-- Dependency matrix ----------------------------------\n"
-                         ++ (matrix2string (dep_matrix g))++"\n"
-                         ++ " transwesd: " ++(show (transwesd g (0.95)))++"\n"
-                         
-                        )
+
+
+
+--                         let graph = val
+--                             a = apply_to_weights graph normalize
+--                             b = filterEdges a myfilter
+--                             c = transformEdges b mytransformation
+--                             g = toGraph a
+-- --                             (c1,c2,c3,c4,i1,i2,i3,i4) = get_motifs g
+--                             c1 = get_motif1 g
+--                             c2 = get_motif2 g
+--                             c3 = get_motif3 g
+--                             c4 = get_motif4 g
+--                             i1 = get_motif5 g
+--                             i2 = get_motif6 g
+--                             i3 = get_motif7 g
+--                             i4 = get_motif8 g
+-- 
+--                             gen = mkStdGen 100
+--                             (rgraph, ngen) = createRGraph gen 100
+--                         in
+--                         trace ("ori "++(show (length a))++" filtered "++(show (length b))++"\n") $
+--                         putStrLn (
+-- --                             "graph " ++ (show graph) ++"\n" ++
+-- --                             "normalized " ++ (show a) ++"\n" ++
+-- --                             "filtered " ++ (show b) ++"\n" ++
+--                             
+--                             "in nodes:       " ++ (show (get_in_nodes g))++"\n"
+--                          ++ "out nodes:      " ++ (show (get_out_nodes g))++"\n"
+--                          ++ "\n-- Cycles ---------------------------------------------\n"
+--                          ++ "cyclic nodes:   " ++ (show (get_cyclic_nodes g))++"\n"
+--                          ++ "negcyclic node: " ++ (show (get_neg_cyclic_nodes g))++"\n"
+--                          ++ "\n-- Feedforward loops ----------------------------------\n"
+--                          ++ "C1-FFl: " ++ (show c1)++"\n"
+--                          ++ "C2-FFl: " ++ (show c2)++"\n"
+--                          ++ "C3-FFl: " ++ (show c3)++"\n"
+--                          ++ "C4-FFl: " ++ (show c4)++"\n"
+--                          ++ "I1-FFl: " ++ (show i1)++"\n"
+--                          ++ "I2-FFl: " ++ (show i2)++"\n"
+--                          ++ "I3-FFl: " ++ (show i3)++"\n"
+--                          ++ "I4-FFl: " ++ (show i4)++"\n"
+--                          ++ "\n-- Dependency matrix ----------------------------------\n"
+--                          ++ (matrix2string (dep_matrix g))++"\n"
+--                          ++ " transwesd: " ++(show (transwesd g (0.95)))++"\n"
+--                          
+--                         )
 
 
      
