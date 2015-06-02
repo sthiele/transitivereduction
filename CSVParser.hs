@@ -94,7 +94,7 @@ mchar =
 identifierr:: Parser String
 identifierr = do
   l <-letter
-  s <- (many1 mchar)
+  s <- (many' mchar)
   return (l:s)
 
 -----------                   
@@ -147,37 +147,50 @@ cellParser = do
   cell <- Data.Attoparsec.Text.scientific
   skipSpaceNoNewline
   return (toRealFloat cell)
-  
+
 
 unscramble:: [MyROW] -> ([String],[[Double]])
 unscramble [] = ([],[])
 unscramble ((id,dta):rest) =
   let (ids,dtas) = unscramble rest in
       ((id:ids),(dta:dtas))
-      
+    
 readCSV2 input = parseOnly csvParser2 (Data.Text.pack input)
 
-readProps input = parseOnly propsParser (Data.Text.pack input)
+readProps input = parseOnly propmapParser (Data.Text.pack input)
 
-propsParser:: Parser [(String,String)]
-propsParser =
+propmapParser:: Parser [(String,String)]
+propmapParser =
   do
   props <- (many' propParser)
-  return props
+  return (concat props)
 
-propParser:: Parser (String,String)
+makepairs:: String -> [String] -> [(String,String)]
+makepairs n [] = []
+makepairs n (p:ps) = ((n,p):(makepairs n ps))
+
+  
+propParser:: Parser [(String,String)]
 propParser = do
   skipSpaceNoNewline
   node <- identifierr
   skipSpaceNoNewline
-  prop <- propertyParser
+  properties <- propertiesParser
   endOfLine
-  return (node, prop)
+  return (makepairs node properties)
 
-anyNoNewline = satisfy (not . isEndOfLine)
+-- anyNoNewline = satisfy (not . isEndOfLine)
+anyNoSep = satisfy (not . separator)
 
+separator c = c == '\r' || c == '\n' || c == ';'
+
+
+propertiesParser:: Parser [String]
+propertiesParser = do
+  properties <- sepBy propertyParser (char ';')
+  return properties
 
 propertyParser:: Parser String
 propertyParser = do
-  property <- (many' anyNoNewline)
-  return property
+  prop <- many' anyNoSep
+  return (unwords (words prop))

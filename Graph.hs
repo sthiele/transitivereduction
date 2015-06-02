@@ -45,6 +45,8 @@ module Graph (
   get_ds,
   get_pos,
   get_neg,
+  get_pos_target_nodes,
+  get_neg_target_nodes,
   check_properties,
 )
 where
@@ -799,3 +801,14 @@ check_properties m acc (n:ns) =
       acc2  = [ (prop,i+1) | (prop,i) <- acc, elem prop props ]
   in
   check_properties m (acc1++acc2) ns
+
+
+get_pos_target_nodes:: [Edge] -> [String]
+get_pos_target_nodes [] = []
+get_pos_target_nodes ((Edge s t True a):es) = (t:(get_pos_target_nodes es))
+get_pos_target_nodes ((Edge s t False a):es) = (get_pos_target_nodes es)
+
+get_neg_target_nodes:: [Edge] -> [String]
+get_neg_target_nodes [] = []
+get_neg_target_nodes ((Edge s t False a):es) = (t:(get_neg_target_nodes es))
+get_neg_target_nodes ((Edge s t True a):es) = (get_neg_target_nodes es)
