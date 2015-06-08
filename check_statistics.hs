@@ -27,6 +27,11 @@ import qualified Data.Vector.Unboxed as U (Vector,fromList)
 import Statistics.Test.KolmogorovSmirnov
 import Statistics.Sample
 
+-- import Graphics.Gnuplot.Simple
+import qualified Graphics.Gnuplot.Advanced as GP
+import qualified Graphics.Gnuplot.Plot.TwoDimensional as Plot2D
+import qualified Graphics.Gnuplot.Graph.TwoDimensional as Graph2D
+
 
                           
 
@@ -69,22 +74,37 @@ main =
                                 pstats = computestats all_phist tf_phist
                                 nstats = computestats all_nhist tf_nhist
                             in
-                            putStrLn (
---                             (show acc)                            
-                            (show_hist all_phist)
-                            ++"\n\n"++
-                            (show_hist all_nhist)
-                            ++"\n\n"++
-                            (show_hists tf_phist)
-                            ++"\n\n"++
-                            (show_hists tf_nhist)
-			    ++"\n\n"++
-                            (show pstats)
-			    ++"\n\n"++                            
-                            (show nstats)                      
-                            )
+			    sequence_ $   
+			    GP.plotDefault list2d :
+			    []
+-- 			    plotList [] (get_hist all_phist)
+--                             putStrLn (
+-- --                             (show acc)                            
+--                             (show_hist all_phist)
+--                             ++"\n\n"++
+--                             (show_hist all_nhist)
+--                             ++"\n\n"++
+--                             (show_hists tf_phist)
+--                             ++"\n\n"++
+--                             (show_hists tf_nhist)
+-- 			    ++"\n\n"++
+--                             (show pstats)
+-- 			    ++"\n\n"++                            
+--                             (show nstats)                      
+--                             )
+
+
+list2d :: Plot2D.T Int Integer
+list2d =
+   Plot2D.list Graph2D.listPoints [0,1,1,2,3,5,8,13]
+   
+-- simple2d :: Plot2D.T Double Double
+-- simple2d =
+--    Plot2D.function Graph2D.lines
+--       (linearScale 100 (-10,10)) sin
                             
-                            
+get_hist [] = []
+get_hist ((p,n):xs) = [n] ++ (get_hist xs)
                             
 show_hists [] = ""
 show_hists (x:xs) = (show_hist x) ++ "\n" ++ (show_hists xs)
